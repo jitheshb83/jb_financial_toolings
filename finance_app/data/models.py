@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import datetime as dt
 
-from sqlalchemy import ForeignKey, LargeBinary
+from sqlalchemy import ForeignKey, LargeBinary, UniqueConstraint
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
 
@@ -123,6 +123,7 @@ class NetWorthSnapshot(Base):
     """
 
     __tablename__ = "net_worth_snapshots"
+    __table_args__ = (UniqueConstraint("date"),)
 
     id: Mapped[int] = mapped_column(primary_key=True)
     date: Mapped[dt.date]

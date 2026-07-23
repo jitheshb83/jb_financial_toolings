@@ -7,11 +7,11 @@ re-encrypt + delete the temp file on save/lock/exit.
 """
 from __future__ import annotations
 
-import os
+import shutil
 import tempfile
 from pathlib import Path
 
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, event
 from sqlalchemy.orm import Session, sessionmaker
 
 from finance_app.data.models import Base
@@ -24,6 +24,7 @@ class DatabaseManager:
         self.encrypted_path = Path(encrypted_path)
         self._temp_dir = Path(tempfile.mkdtemp(prefix="finance_app_"))
         self._temp_db_path = self._temp_dir / "working.sqlite3"
+        self._salt: bytes | None = None
         self.finance_key: bytes | None = None
         self.root_key: bytes | None = None
         self.engine = None
@@ -62,6 +63,11 @@ class DatabaseManager:
 
     def _open_engine(self) -> None:
         self.engine = create_engine(f"sqlite:///{self._temp_db_path}")
+
+        @event.listens_for(self.engine, "connect")
+        def _enable_foreign_keys(dbapi_connection, _):
+            dbapi_connection.execute("PRAGMA foreign_keys=ON")
+
         self.SessionLocal = sessionmaker(bind=self.engine, expire_on_commit=False)
 
     def save(self) -> None:
@@ -79,7 +85,7 @@ class DatabaseManager:
         self.encrypted_path.write_bytes(self._salt + token)
 
     def lock(self) -> None:
-        """Save, drop keys from memory, and remove the temp working file."""
+        """Save, drop keys from memory, and remove the temp working directory."""
         if self.engine is not None:
             self.save()
             self.engine.dispose()
@@ -87,8 +93,7 @@ class DatabaseManager:
         self.root_key = None
         self.engine = None
         self.SessionLocal = None
-        if self._temp_db_path.exists():
-            self._temp_db_path.unlink()
+        shutil.rmtree(self._temp_dir, ignore_errors=True)
 
     def session(self) -> Session:
         if self.SessionLocal is None:

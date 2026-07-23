@@ -2,8 +2,8 @@
 
 Key hierarchy:
     master password --Argon2id--> root_key (32 bytes)
-    root_key --HKDF(info=b"finance")--> finance_key  (encrypts the SQLite file)
-    root_key --HKDF(info=b"vault")-->   vault_key    (security/vault_crypto.py)
+    root_key --HKDF(info=b"finance_key")--> finance_key  (encrypts the SQLite file)
+    root_key --HKDF(info=b"vault_key")-->   vault_key    (security/vault_crypto.py)
 """
 from __future__ import annotations
 
