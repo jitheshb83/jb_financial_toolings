@@ -26,7 +26,9 @@ For feature scope and phased build history, see [`jb_finacial_tooling_plan.md`](
 
 Both apps read and write the *same* encrypted file, independently. There is no server, no API, no shared runtime — compatibility exists purely because both apps implement the identical encryption/serialization scheme against the identical SQLite schema. That equivalence is verified by tests (§5), not assumed.
 
-Sync is deliberately dumb: the file just needs to land in the same place both apps look — a Dropbox/Google-Drive-synced folder on desktop, and on Android, anything reachable through the Storage Access Framework (including the Google Drive app's own document provider). Neither app talks to a cloud API directly; the sync provider's own app does that.
+Sync has two tiers. By default it's deliberately dumb: the file just needs to land in the same place both apps look — a Dropbox/Google-Drive-synced folder on desktop, and on Android, anything reachable through the Storage Access Framework (including the Google Drive app's own document provider). Neither app talks to a cloud API directly; the sync provider's own app does that.
+
+As an additional opt-in path, both apps can also talk to the Google Drive v3 REST API directly (OAuth, scoped to `drive.file` — only files the app itself creates/opens): desktop mirrors a local file to/from a linked Drive file via `finance_app/sync/` (`DriveAuthManager`, `DriveClient`, `DriveSyncService`); Android reads/writes a chosen Drive file directly through `DriveEncryptedFileStore`, a second `EncryptedFileStore` implementation alongside `SafEncryptedFileStore`. This is additive — the "dumb sync" paths above remain fully available and unaffected.
 
 ---
 
@@ -208,7 +210,7 @@ If either app's on-disk format changes (a new table, a changed KDF parameter, a 
 ## 6. Known limitations / open items
 
 - **Android scope**: Vault (read/write) + Dashboard (read-only) only. Expenses/debts/investments/borrowings editing is desktop-only for now — a deliberate scope cut to limit how much surface area writes from a second codebase into the shared file.
-- **No conflict detection**: neither app checks whether the on-disk file changed since it was last read before writing back (e.g., two devices editing around the same sync window). The plan document notes a lock-check as a Phase 9 desktop-packaging item; it hasn't been built on either platform yet.
+- **Conflict detection**: only exists for the Drive-API sync path (§1) — both `DriveSyncService` (desktop) and `DriveEncryptedFileStore` (Android) track the Drive file's `headRevisionId` and refuse to overwrite it if it changed remotely since it was last read, warning the user instead. The "dumb sync" paths (manual Dropbox/Drive folder on desktop, SAF on Android) still have none — neither checks whether the on-disk file changed since it was last read before writing back, e.g. two devices editing around the same sync window. Those providers' own sync clients handle serialization differently and a lock-check for them remains unbuilt.
 - **No live FX rates**: `currency_service` is a manually-maintained rate table by design (MVP scope) — no external rate API integration.
 - **Net worth's debt component** uses each debt's original principal, not outstanding balance (paydown isn't tracked as a running balance separately from the payoff simulator), so `report_service.compute_net_worth()` is a conservative estimate once debts have been partially paid down.
 - **Desktop has no automated test suite** — verification has been headless service-layer scripts plus offscreen Qt smoke tests, run ad hoc during development rather than wired into CI.

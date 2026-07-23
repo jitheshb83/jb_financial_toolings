@@ -12,6 +12,9 @@ from finance_app.services.fd_service import FDService
 from finance_app.services.investment_service import InvestmentService
 from finance_app.services.report_service import ReportService
 from finance_app.services.vault_service import VaultService
+from finance_app.settings import AppSettings
+from finance_app.sync.drive_auth import DriveAuthManager
+from finance_app.sync.drive_sync_service import DriveConflictError, DriveSyncService
 from finance_app.ui.icons import icon
 from finance_app.ui.views.borrowings_view import BorrowingsView
 from finance_app.ui.views.currency_view import CurrencyView
@@ -22,14 +25,26 @@ from finance_app.ui.views.investments_view import InvestmentsView
 from finance_app.ui.views.vault_view import VaultView
 
 IDLE_LOCK_SECONDS = 5 * 60
+DRIVE_SYNC_RETRY_SECONDS = 5 * 60
 
 
 class MainWindow(QMainWindow):
-    def __init__(self, db: DatabaseManager, on_locked):
+    def __init__(
+        self,
+        db: DatabaseManager,
+        on_locked,
+        sync_service: DriveSyncService | None = None,
+        settings: AppSettings | None = None,
+        auth_manager: DriveAuthManager | None = None,
+    ):
         super().__init__()
         self.db = db
         self._on_locked = on_locked
         self._session = db.session()
+        self.sync_service = sync_service
+        self.settings = settings or AppSettings()
+        self.auth_manager = auth_manager or DriveAuthManager()
+        self._sync_dirty = False
 
         self.setWindowTitle("Personal Finance")
         self.resize(1000, 700)
@@ -38,6 +53,15 @@ class MainWindow(QMainWindow):
         self._idle_timer.setInterval(IDLE_LOCK_SECONDS * 1000)
         self._idle_timer.timeout.connect(self.lock)
         self._idle_timer.start()
+
+        # Retries a push periodically, but only if one is actually pending
+        # (e.g. the last attempt failed due to a network blip) — not an
+        # unconditional re-upload on a fixed schedule, which would just waste
+        # bandwidth re-sending unchanged bytes.
+        self._drive_retry_timer = QTimer(self)
+        self._drive_retry_timer.setInterval(DRIVE_SYNC_RETRY_SECONDS * 1000)
+        self._drive_retry_timer.timeout.connect(self._retry_pending_sync)
+        self._drive_retry_timer.start()
 
         self.tabs = QTabWidget()
 
@@ -80,8 +104,19 @@ class MainWindow(QMainWindow):
 
         self.setCentralWidget(self.tabs)
 
-        lock_action = self.menuBar().addMenu("&File").addAction(icon("lock"), "Lock now")
+        file_menu = self.menuBar().addMenu("&File")
+        lock_action = file_menu.addAction(icon("lock"), "Lock now")
         lock_action.triggered.connect(self.lock)
+
+        file_menu.addSeparator()
+        self.sync_now_action = file_menu.addAction(icon("refresh"), "Sync now")
+        self.sync_now_action.setEnabled(self.sync_service is not None)
+        self.sync_now_action.triggered.connect(self._sync_now)
+
+        self.sync_toggle_action = file_menu.addAction("Sync with Google Drive")
+        self.sync_toggle_action.setCheckable(True)
+        self.sync_toggle_action.setChecked(self.settings.is_drive_sync_enabled())
+        self.sync_toggle_action.toggled.connect(self._on_sync_toggle)
 
         self.statusBar().showMessage(f"Unlocked: {self.db.encrypted_path}")
 
@@ -98,9 +133,56 @@ class MainWindow(QMainWindow):
         # activity originated in a different tab.
         self.investments_view.refresh()
         self.borrowings_view.refresh()
+        self._auto_sync_push()
+
+    def _auto_sync_push(self) -> None:
+        if self.sync_service is None or not self.settings.is_drive_sync_enabled():
+            return
+        self._sync_dirty = True
+        try:
+            self.sync_service.push()
+            self._sync_dirty = False
+        except DriveConflictError as exc:
+            QMessageBox.warning(self, "Sync conflict", str(exc))
+        except Exception as exc:  # pragma: no cover - never block local saves on connectivity
+            self.statusBar().showMessage(f"Drive sync failed — will retry ({exc})", 5000)
+
+    def _retry_pending_sync(self) -> None:
+        if self._sync_dirty:
+            self._auto_sync_push()
+
+    def _sync_now(self) -> None:
+        if self.sync_service is None:
+            return
+        try:
+            self.sync_service.push()
+            self._sync_dirty = False
+            self.statusBar().showMessage("Synced with Google Drive.", 3000)
+        except DriveConflictError as exc:
+            QMessageBox.warning(self, "Sync conflict", str(exc))
+        except Exception as exc:
+            self._sync_dirty = True
+            QMessageBox.warning(self, "Sync failed", str(exc))
+
+    def _on_sync_toggle(self, checked: bool) -> None:
+        if checked and self.sync_service is None:
+            try:
+                new_service = DriveSyncService(self.auth_manager, self.db.encrypted_path)
+                new_file_id = new_service.link_new_file()
+            except Exception as exc:
+                QMessageBox.warning(self, "Could not link to Drive", str(exc))
+                self.sync_toggle_action.blockSignals(True)
+                self.sync_toggle_action.setChecked(False)
+                self.sync_toggle_action.blockSignals(False)
+                return
+            self.sync_service = new_service
+            self.settings.set_last_file(str(self.db.encrypted_path), new_file_id)
+            self.sync_now_action.setEnabled(True)
+        self.settings.set_drive_sync_enabled(checked)
 
     def lock(self) -> None:
         self._idle_timer.stop()
+        self._drive_retry_timer.stop()
         self._session.close()
         try:
             self.db.lock()

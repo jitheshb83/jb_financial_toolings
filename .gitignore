@@ -3,6 +3,9 @@ __pycache__/
 *.pyc
 *.enc
 
+# Google Drive OAuth client secret (per-machine, never committed)
+credentials.json
+
 # macOS
 .DS_Store
 

@@ -148,8 +148,8 @@ This gives you meaningfully stronger protection than a single layer, without the
 - Settings screen (base currency, categories, theme)
 
 ### Phase 9 — Packaging
-- PyInstaller build for your OS
-- Document the cloud-sync workflow (e.g., store the encrypted file in your Dropbox folder, add a lock-check to avoid conflicting edits from two devices at once)
+- PyInstaller build for your OS — done (`finance_app.spec`, produces `Personal Finance.app` on macOS)
+- Cloud-sync workflow: the default is still just storing the encrypted file in your Dropbox/Drive-synced folder, but there's now also an opt-in Google Drive API sync (`finance_app/sync/`) with a lock-check — it tracks the linked Drive file's revision and warns instead of silently overwriting if it changed remotely since it was last read
 
 ### Phase 10 — Future: live data feeds
 - Define `DataImportService` interface now (even if unused) so Plaid/broker APIs can be dropped in later without touching the rest of the app
@@ -158,8 +158,8 @@ This gives you meaningfully stronger protection than a single layer, without the
 - **Scope (v1):** Vault (full read/write) + Dashboard (read-only). Not full feature parity — expenses/debts/investments/borrowings editing stays desktop-only for now, to limit the blast radius of a second codebase writing to the same file.
 - **Stack:** Native Kotlin/Android (best mobile UX and access to Android Keystore), separate codebase from the Python desktop app.
 - **File compatibility:** a Kotlin crypto module re-implements the same on-disk format byte-for-byte — Argon2id key derivation, HKDF split into `finance_key`/`vault_key`, Fernet decrypt/encrypt for the file layer, AES-256-GCM for vault items — so either app can open a file the other last wrote.
-- **Sync mechanism:** Android Storage Access Framework (SAF) file picker pointed at the Google Drive app's document provider. No Google API credentials/OAuth needed — the Drive app itself handles the actual upload/sync, the same way the desktop app just treats a Dropbox/Drive-synced folder as a normal file path.
-- **Conflict handling:** same lock-check approach as the desktop cloud-sync workflow (Phase 9) — warn if the file's on-disk state doesn't match what was last read before writing back.
+- **Sync mechanism:** Android Storage Access Framework (SAF) file picker pointed at the Google Drive app's document provider (no Google API credentials/OAuth needed for this path — the Drive app itself handles the actual upload/sync), plus an additional opt-in direct Google Drive API path (`DriveEncryptedFileStore`, sign-in via `DriveAuthManager`) for opening a Drive file without going through the Drive app's picker.
+- **Conflict handling:** the direct Drive API path has the same revision-based lock-check as desktop's (Phase 9) — warns instead of overwriting if the file changed remotely since it was last read. The SAF path still has none.
 - **Milestone:** open the same `.enc` file created by the desktop app from an Android phone, unlock it, view/edit vault items and the net worth dashboard, and have changes show up back on desktop after a Drive sync.
 
 ---

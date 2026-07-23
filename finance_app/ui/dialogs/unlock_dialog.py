@@ -69,14 +69,24 @@ class UnlockDialog(QDialog):
         buttons.accepted.connect(self._on_accept)
         buttons.rejected.connect(self.reject)
 
+        self.use_different_source = False
+        different_source_btn = QPushButton("Use a different file…")
+        different_source_btn.setFlat(True)
+        different_source_btn.clicked.connect(self._on_use_different_source)
+
         layout = QVBoxLayout(self)
         layout.addWidget(logo_label)
         layout.addLayout(form)
         layout.addWidget(self.status_label)
         layout.addWidget(buttons)
+        layout.addWidget(different_source_btn)
 
         self.file_path_edit.textChanged.connect(self._update_mode)
         self._update_mode()
+
+    def _on_use_different_source(self) -> None:
+        self.use_different_source = True
+        self.reject()
 
     def _browse(self) -> None:
         path, _ = QFileDialog.getSaveFileName(

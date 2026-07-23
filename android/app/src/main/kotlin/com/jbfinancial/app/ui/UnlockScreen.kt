@@ -26,7 +26,7 @@ import androidx.compose.ui.unit.dp
 import com.jbfinancial.app.R
 
 @Composable
-fun PickFileScreen(onPickFile: () -> Unit) {
+fun PickFileScreen(onPickFile: () -> Unit, onSignInWithDrive: () -> Unit) {
     Column(
         modifier = Modifier.fillMaxSize().padding(24.dp),
         verticalArrangement = Arrangement.Center,
@@ -40,11 +40,16 @@ fun PickFileScreen(onPickFile: () -> Unit) {
         Text("Open your finance data file", style = MaterialTheme.typography.titleLarge)
         Text(
             "Pick the .enc file created by the desktop app — from local storage, " +
-                "or from the Google Drive app if it's synced there.",
+                "from the Google Drive app if it's synced there, or sign in to open it " +
+                "directly from Google Drive.",
             style = MaterialTheme.typography.bodyMedium,
             modifier = Modifier.padding(top = 8.dp, bottom = 24.dp),
         )
-        Button(onClick = onPickFile) { Text("Choose file") }
+        Button(onClick = onPickFile, modifier = Modifier.fillMaxWidth()) { Text("Choose file") }
+        Button(
+            onClick = onSignInWithDrive,
+            modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+        ) { Text("Sign in with Google Drive") }
     }
 }
 
