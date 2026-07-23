@@ -1,13 +1,17 @@
 from __future__ import annotations
 
 import sys
+from pathlib import Path
 
+from PySide6.QtGui import QIcon
 from PySide6.QtWidgets import QApplication, QDialog, QMessageBox
 
 from finance_app.data.database import DatabaseManager
 from finance_app.security.crypto import WrongPassword
 from finance_app.ui.dialogs.unlock_dialog import UnlockDialog
 from finance_app.ui.main_window import MainWindow
+
+RESOURCES_DIR = Path(__file__).parent / "resources"
 
 
 class AppController:
@@ -43,6 +47,7 @@ class AppController:
 def main() -> int:
     app = QApplication(sys.argv)
     app.setApplicationName("Personal Finance")
+    app.setWindowIcon(QIcon(str(RESOURCES_DIR / "logo_icon.png")))
     controller = AppController(app)
     controller.start()
     return app.exec()

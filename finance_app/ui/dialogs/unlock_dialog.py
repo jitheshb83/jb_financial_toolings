@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from PySide6.QtCore import Qt
+from PySide6.QtGui import QPixmap
 from PySide6.QtWidgets import (
     QDialog,
     QDialogButtonBox,
@@ -18,6 +20,7 @@ from PySide6.QtWidgets import (
 from finance_app.ui.icons import icon
 
 DEFAULT_FILE_PATH = str(Path.home() / "finance_data.enc")
+LOGO_PATH = Path(__file__).parents[2] / "resources" / "logo_full.png"
 
 
 class UnlockDialog(QDialog):
@@ -30,8 +33,13 @@ class UnlockDialog(QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setWindowTitle("Unlock Finance Data")
-        self.setWindowIcon(icon("lock"))
         self.setMinimumWidth(420)
+
+        logo_label = QLabel()
+        logo_label.setPixmap(
+            QPixmap(str(LOGO_PATH)).scaledToWidth(220, Qt.TransformationMode.SmoothTransformation)
+        )
+        logo_label.setAlignment(Qt.AlignmentFlag.AlignHCenter)
 
         self.file_path_edit = QLineEdit(DEFAULT_FILE_PATH)
         browse_btn = QPushButton(icon("browse"), "Browse…")
@@ -62,6 +70,7 @@ class UnlockDialog(QDialog):
         buttons.rejected.connect(self.reject)
 
         layout = QVBoxLayout(self)
+        layout.addWidget(logo_label)
         layout.addLayout(form)
         layout.addWidget(self.status_label)
         layout.addWidget(buttons)

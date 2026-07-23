@@ -57,10 +57,14 @@ class TransactionDialog(QDialog):
         if category:
             self.category_combo.setCurrentText(category)
 
+        self.type_combo = QComboBox()
+        self.type_combo.addItems(["Expense", "Income"])
+        self.type_combo.setCurrentText("Income" if amount > 0 else "Expense")
+
         self.amount_spin = QDoubleSpinBox()
-        self.amount_spin.setRange(-1_000_000_000, 1_000_000_000)
+        self.amount_spin.setRange(0, 1_000_000_000)
         self.amount_spin.setDecimals(2)
-        self.amount_spin.setValue(amount)
+        self.amount_spin.setValue(abs(amount))
 
         self.currency_edit = QLineEdit(currency)
 
@@ -79,6 +83,7 @@ class TransactionDialog(QDialog):
         form.addRow("Account", self.account_combo)
         form.addRow("Date", self.date_edit)
         form.addRow("Category", self.category_combo)
+        form.addRow("Type", self.type_combo)
         form.addRow("Amount", self.amount_spin)
         form.addRow("Currency", self.currency_edit)
         form.addRow(self.recurring_check, self.recurrence_combo)
@@ -118,7 +123,8 @@ class TransactionDialog(QDialog):
 
     @property
     def amount(self) -> float:
-        return self.amount_spin.value()
+        value = self.amount_spin.value()
+        return -value if self.type_combo.currentText() == "Expense" else value
 
     @property
     def currency(self) -> str:

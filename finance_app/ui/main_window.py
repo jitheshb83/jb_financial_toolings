@@ -79,7 +79,6 @@ class MainWindow(QMainWindow):
         self.tabs.setCurrentIndex(0)
 
         self.setCentralWidget(self.tabs)
-        self.setWindowIcon(icon("dashboard"))
 
         lock_action = self.menuBar().addMenu("&File").addAction(icon("lock"), "Lock now")
         lock_action.triggered.connect(self.lock)
